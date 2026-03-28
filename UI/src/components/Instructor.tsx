@@ -1,8 +1,6 @@
 "use client"
 
 import { WavyBackground } from "./ui/wavy-background";
-import { AnimatedTooltip } from "./ui/animated-tooltip";
-
 
 const instructors = [
     {
@@ -37,17 +35,31 @@ const instructors = [
 
 const Instructor = () => {
   return (
-    <div className="relative h-[40rem] overflow-hidden flex items-center justify-center">
-      <WavyBackground className="w-full max-w-7xl mx-auto flex flex-col items-center justify-center h-full">
-        <h2 className="text-2xl md:text-4xl lg:text-7xl text-white font-bold text-center mb-8">Meet Our Instructor</h2>
-        <p className="text-base md:text-lg text-white text-center mb-4">Instructor: guiding coders through programming concepts and practices.</p>
-        <div className="flex flex-row items-center justify-center mb-10 w-full">
-            <AnimatedTooltip items={instructors}/>
-        </div>
-      </WavyBackground>
-     
+    <div className="relative min-h-[50rem] flex flex-col items-center justify-center py-10 bg-slate-900">
+      <h2 className="text-2xl md:text-4xl lg:text-5xl text-white font-bold text-center mb-8">
+        Meet Our Instructors
+      </h2>
+      <p className="text-base md:text-lg text-gray-300 text-center mb-8 max-w-2xl">
+        Instructors guide coders through programming concepts and best practices. Simple presentation with no hover effect.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-6xl px-4">
+        {instructors.map((inst) => (
+          <div
+            key={inst.id}
+            className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-center"
+          >
+            <img
+              src={inst.image}
+              alt={inst.name}
+              className="mx-auto h-24 w-24 rounded-full object-cover mb-4"
+            />
+            <h3 className="text-white font-semibold text-lg">{inst.name}</h3>
+            <p className="text-gray-300 text-sm">{inst.designation}</p>
+          </div>
+        ))}
+      </div>
     </div>
-  )
-}
+  );
+};
 
 export default Instructor

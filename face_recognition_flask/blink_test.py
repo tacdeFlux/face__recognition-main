@@ -27,7 +27,8 @@ landmarker = vision.FaceLandmarker.create_from_options(options)
 
 cap = cv2.VideoCapture(0)
 blink_counter = 0
-is_blinking = False
+closing = False
+frame_count = 0
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -58,16 +59,27 @@ while cap.isOpened():
             elif shape.category_name == 'eyeBlinkRight':
                 right_blink_score = shape.score
         
-        # --- NEW CODE STARTS HERE ---
-        # If either eye hits 0.35, trigger the blink
-        if left_blink_score > 0.35 or right_blink_score > 0.35:
-            is_blinking = True
-        elif is_blinking and (left_blink_score <= 0.35 and right_blink_score <= 0.35):
-            blink_counter += 1
-            is_blinking = False
-        # --- NEW CODE ENDS HERE ---
+        # Eye-specific blink detection with symmetry and thresholds
+        if abs(left_blink_score - right_blink_score) > 0.20:
+            print(f"Asymmetric blink: L={left_blink_score:.2f} R={right_blink_score:.2f}")
+        else:
+            avg_blink = (left_blink_score + right_blink_score) / 2
+            if avg_blink > 0.65 and not closing:
+                closing = True
+                frame_count = 0
+                print("Eye closing detected")
+            if closing:
+                if avg_blink < 0.25:
+                    frame_count += 1
+                    if frame_count >= 2:
+                        blink_counter += 1
+                        print(f"Blink counted! Total: {blink_counter}")
+                        closing = False
+                else:
+                    frame_count = 0
 
        # Display the new metrics
+        print(f'L: {left_blink_score:.2f} R: {right_blink_score:.2f} Avg: {avg_blink:.2f} Blinks: {blink_counter}')
         cv2.putText(frame, f'L: {left_blink_score:.2f} R: {right_blink_score:.2f}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
         cv2.putText(frame, f'Total Blinks: {blink_counter}', (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         

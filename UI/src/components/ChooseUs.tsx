@@ -26,7 +26,7 @@ const musicSchoolContent = [
 ];
 const ChooseUs = () => {
   return (
-    <div className="">
+    <div className="py-20">
       <StickyScroll content={musicSchoolContent} />
     </div>
   );

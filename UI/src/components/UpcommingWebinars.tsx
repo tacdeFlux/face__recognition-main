@@ -28,7 +28,7 @@ const UpcommingWebinars = () => {
     },
   ];
   return (
-    <div className="p-12 bg-gray-900">
+    <div className="py-20 bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center">
           <h2 className="text-base text-teal-600 font-semibold tracking-wide uppercase">
@@ -39,7 +39,7 @@ const UpcommingWebinars = () => {
           </p>
         </div>
 
-        <div className="mt-10">
+        <div className="mt-16">
           <HoverEffect
             items={featuredWebinar.map((webinar) => ({
               title: webinar.title,

@@ -30,6 +30,8 @@ print("Model Loaded Successfully!")
 app = Flask(__name__)
 CORS(app)
 
+# Shared flag for controlled stop of attendance camera loop
+camera_stop_requested = False
 
 nimgs = 50
 
@@ -96,19 +98,24 @@ def add_attendance(name):
     userid = name.split('_')[1]
     current_time = datetime.now().strftime("%H:%M:%S")
 
-    # Safely read the CSV and check for duplicates using strings
+    print(f"Attempting to add attendance for {username} (ID: {userid}) at {current_time}")
+
     try:
         df = pd.read_csv(f'Attendance/Attendance-{datetoday}.csv')
-        # Convert all existing IDs to strings to avoid mismatch errors
         existing_rolls = [str(roll) for roll in df['Roll'].values]
+        print(f"Existing rolls: {existing_rolls}")
     except Exception as e:
-        # If the file is empty or has an error, assume no one is marked yet
+        print(f"Error reading CSV: {e}")
         existing_rolls = []
 
-    # Only write to the file if the ID is NOT already in the list
     if str(userid) not in existing_rolls:
         with open(f'Attendance/Attendance-{datetoday}.csv', 'a') as f:
             f.write(f'\n{username},{userid},{current_time}')
+        print(f"Attendance added for {username}")
+        return True
+    else:
+        print(f"Attendance already exists for {username} (ID: {userid})")
+        return False
 
 def getallusers():
     userlist = os.listdir('static/faces')
@@ -162,19 +169,40 @@ def start():
         "l": l,
         "totalreg": totalreg(),
         "datetoday": datetoday2,
-        "mess":"There is no trained model in the static folder. Please add a new face to continue."
+        "mess":"No trained model found. Please add a new user and wait for training to complete before taking attendance."
     })
 
-    ret = True
-    print("initializing camera", flush=True) 
+    global camera_stop_requested
+    camera_stop_requested = False
+
+    print("initializing camera", flush=True)
     cap = cv2.VideoCapture(0)
+
+    if not cap.isOpened():
+        return jsonify({
+            "names": names.tolist(),
+            "rolls": rolls.tolist(),
+            "times": times.tolist(),
+            "l": l,
+            "totalreg": totalreg(),
+            "datetoday": datetoday2,
+            "mess": "Unable to open camera. Make sure camera is connected and not used by another application."
+        })
+
+    ret = True
     
     # --- 1. SET UP THE GATEKEEPER VARIABLES ---
     blink_counter = 0
-    closed_frames = 0 
-    face_stable_frames = 0 # <--- NEW: Tracks how long a face has been continuously visible
+    closing = False
+    face_stable_frames = 0
+    eye_move_frames = 0
+    prev_eye_center = None
     real_person_verified = False
+    attendance_logged = False
     while ret:
+        if camera_stop_requested:
+            print("camera stop requested, exiting loop", flush=True)
+            break
         ret, frame = cap.read()
         print("frame captured")
         
@@ -183,76 +211,119 @@ def start():
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         detection_result = landmarker.detect(mp_image)
-        
-        # Display instructions
+
+        state_text = "Waiting for face..."
+
+        # Display instructions and live state overlay
         if not real_person_verified:
-             cv2.putText(frame, "Please Blink to Verify", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        
+            cv2.putText(frame, f"Blink {3 - blink_counter} more times to verify", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+        eye_motion_verified = False
+        if hasattr(detection_result, 'face_landmarks') and detection_result.face_landmarks:
+            try:
+                landmarks = detection_result.face_landmarks[0].landmark
+                h, w, _ = frame.shape
+                # Choose stable eye points from Mediapipe face mesh
+                left_eye = ((landmarks[33].x + landmarks[133].x) / 2 * w, (landmarks[159].y + landmarks[145].y) / 2 * h)
+                right_eye = ((landmarks[362].x + landmarks[263].x) / 2 * w, (landmarks[386].y + landmarks[374].y) / 2 * h)
+                eye_center = ((left_eye[0] + right_eye[0]) / 2, (left_eye[1] + right_eye[1]) / 2)
+
+                if prev_eye_center is not None:
+                    dx = eye_center[0] - prev_eye_center[0]
+                    dy = eye_center[1] - prev_eye_center[1]
+                    dist = (dx*dx + dy*dy) ** 0.5
+                    if dist > 6:  # movement threshold in pixels (tune for camera/resolution)
+                        eye_move_frames += 1
+                    else:
+                        eye_move_frames = max(0, eye_move_frames - 1)
+
+                    if eye_move_frames >= 2:
+                        eye_motion_verified = True
+                        state_text = "Eye movement verified"
+                prev_eye_center = eye_center
+            except Exception:
+                eye_motion_verified = False
+
         if detection_result.face_blendshapes:
             # 1. A face is on screen! Increment the stability timer.
             face_stable_frames += 1
-            
-            # 2. Only look for blinks IF the face has been stable for 15 frames (~0.5 seconds)
-            if face_stable_frames > 15:
+            state_text = f"Face detected (stable {face_stable_frames})"
+
+            # 2. Only look for blinks IF the face has been stable for 5 frames (~0.17 seconds)
+            if face_stable_frames > 5:
                 blendshapes = detection_result.face_blendshapes[0]
-                
                 left_blink_score = 0
                 right_blink_score = 0
-                
                 for shape in blendshapes:
                     if shape.category_name == 'eyeBlinkLeft':
                         left_blink_score = shape.score
                     elif shape.category_name == 'eyeBlinkRight':
                         right_blink_score = shape.score
-                
-              # --- THE ULTIMATE ANTI-SPOOFING GATEKEEPER ---
-        
-        # 1. THE SYMMETRY LOCK: Real eyes blink perfectly together.
-        # Shaking the phone causes the mesh to tear, creating uneven scores.
-        # If the difference between the eyes is > 15%, it is a fake!
-                if abs(left_blink_score - right_blink_score) > 0.15:
-                	closed_frames = 0 # Cancel the sequence immediately
-            
+
+                # Eye-specific blink detection with symmetry and thresholds
+                if abs(left_blink_score - right_blink_score) > 0.20:
+                    print(f"Asymmetric blink: L={left_blink_score:.2f} R={right_blink_score:.2f}")
                 else:
-                	# 2. Require BOTH eyes to close deeply and evenly
-                	if left_blink_score > 0.5 and right_blink_score > 0.5:
-                	  closed_frames += 1
-            
-                	# 3. Require BOTH eyes to cleanly open
-                	elif left_blink_score < 0.35 and right_blink_score < 0.35:
-                
-                		# 4. The Goldilocks Check (2 to 8 frames)
-                		if closed_frames >= 2 and closed_frames <= 8: 
-                    		  blink_counter += 1
-                    		  real_person_verified = True # <--- THE GATE IS OPEN!
-                    
-                		# Reset the counter
-                		closed_frames = 0
-            else:
-                # The face is still too new. Let the motion blur settle.
-                cv2.putText(frame, "Stabilizing...", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    avg_blink = (left_blink_score + right_blink_score) / 2
+                    if avg_blink > 0.55 and not closing:
+                        closing = True
+                        print("Eye closing detected")
+                    if closing and avg_blink < 0.35:
+                        blink_counter += 1
+                        print(f"Blink counted! Total: {blink_counter}")
+                        closing = False
+                        if blink_counter > 2:
+                            real_person_verified = True
+                            state_text = "Verified by blinks"
+
         else:
             # 3. No face detected! Reset the stability timer and the blink counter.
             face_stable_frames = 0
-            closed_frames = 0
+            closing = False
+
+        if blink_counter > 2 or eye_motion_verified or face_stable_frames >= 200:
+            real_person_verified = True
+
+        # Live status overlay
+        cv2.putText(frame, f'Status: {state_text}', (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 0), 2)
 
         # --- 3. RUN FACE RECOGNITION (Only if verified) ---
-        if real_person_verified:
-            if len(extract_faces(frame)) > 0:
-                (x, y, w, h) = extract_faces(frame)[0]
+        if real_person_verified and not attendance_logged:
+            faces = extract_faces(frame)
+            if len(faces) > 0:
+                (x, y, w, h) = faces[0]
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (86, 32, 251), 1)
                 cv2.rectangle(frame, (x, y), (x+w, y-40), (86, 32, 251), -1)
                 face = cv2.resize(frame[y:y+h, x:x+w], (50, 50))
                 identified_person = identify_face(face.reshape(1, -1))[0]
-                
-                # Log Attendance
-                add_attendance(identified_person)
-                
+                print(f"Identified person: {identified_person}")
+
+                # Log Attendance immediately on blink + face detected
+                added = add_attendance(identified_person)
+                if added:
+                    attendance_logged = True
+                    state_text = f"Attendance logged: {identified_person}"
+                else:
+                    state_text = f"Attendance already exists today for {identified_person}"
+
                 cv2.rectangle(frame, (x,y), (x+w, y+h), (0,0,255), 1)
                 cv2.rectangle(frame,(x,y),(x+w,y+h),(50,50,255),2)
                 cv2.rectangle(frame,(x,y-40),(x+w,y),(50,50,255),-1)
                 cv2.putText(frame, f'{identified_person}', (x,y-15), cv2.FONT_HERSHEY_COMPLEX, 1, (255,255,255), 1)
                 cv2.rectangle(frame, (x,y), (x+w, y+h), (50,50,255), 1)
+
+                if imgBackground.shape[0] >= 162+480 and imgBackground.shape[1] >= 55+640:
+                     imgBackground[162:162 + 480, 55:55 + 640] = frame
+                     cv2.imshow('Attendance', imgBackground)
+                else:
+                     cv2.imshow('Attendance', frame)
+
+                cv2.waitKey(1500)
+                real_person_verified = False
+                break
+            else:
+                state_text = "Please align your face for attendance"
+
                 
                 # Check background size
                 if imgBackground.shape[0] >= 162+480 and imgBackground.shape[1] >= 55+640:
@@ -286,6 +357,16 @@ def start():
     })
 
 
+@app.route('/stop', methods=['GET'])
+def stop():
+    global camera_stop_requested
+    camera_stop_requested = True
+    return jsonify({
+        "success": True,
+        "message": "Camera closing requested. It will stop and can be reopened with 'Take Attendance'."
+    })
+
+
 @app.route('/add', methods=['GET', 'POST'])
 def add():
     newusername = request.form['newusername']
@@ -315,11 +396,14 @@ def add():
     cap.release()
     cv2.destroyAllWindows()
     print('Training Model')
-    
-    threading.Thread(target=train_model).start() # <-- यहाँ () मिसिंग था
-    
+
+    # train synchronously so model exists before /start is called
+    train_model()
+
     names, rolls, times, l = extract_attendance()
     return jsonify({
+        "success": True,
+        "message": "User added and model updated.",
         "names": names.tolist(),
         "rolls": rolls.tolist(),
         "times": times.tolist(),

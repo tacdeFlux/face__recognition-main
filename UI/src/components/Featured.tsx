@@ -18,7 +18,7 @@ const Featured = () => {
     (course: Course) => course.isFeatured
   );
   return (
-    <div className="py-12 bg-gray-900">
+    <div className="py-20 bg-gray-900">
       <div>
         <div className="text-center">
           <h2 className="text-base text-teal-600 font-semibold tracking-wide uppercase">
@@ -29,7 +29,7 @@ const Featured = () => {
           </p>
         </div>
       </div>
-      <div className="mt-10">
+      <div className="mt-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-center mx-4">
           {FeaturedCourses.map((course: Course) => (
             <div key={course.id} className="flex justify-center">
