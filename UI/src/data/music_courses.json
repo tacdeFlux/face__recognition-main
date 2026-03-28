@@ -1,0 +1,104 @@
+{
+  "courses": [
+    {
+      "id": 1,
+      "title": "Automatic Identification",
+      "slug": "guitar-fundamentals",
+      "description": "Detects and identifies faces without manual intervention, saving time and reducing human error.",
+      "price": 99.99,
+      "instructor": "John Doe",
+      "isFeatured": true,
+      "image": "/courses/guitar.jpg"
+    },
+    {
+      "id": 2,
+      "title": "Piano for Beginners",
+      "slug": "piano-for-beginners",
+      "description": "Start your musical journey with foundational piano skills taught by expert instructors.",
+      "price": 109.99,
+      "instructor": "Jane Smith",
+      "isFeatured": false,
+      "image": "/courses/piano.jpg"
+    },
+    {
+      "id": 3,
+      "title": "Real-Time Attendance",
+      "slug": "advanced-vocal-techniques",
+      "description": "Instantly records attendance, making it ideal for classrooms, offices, and events.",
+      "price": 119.99,
+      "instructor": "Emily Johnson",
+      "isFeatured": true,
+      "image": "/courses/vocalist.jpg"
+    },
+    {
+      "id": 4,
+      "title": "Drumming Mastery",
+      "slug": "drumming-mastery",
+      "description": "Master the drums with our comprehensive course covering all skill levels.",
+      "price": 129.99,
+      "instructor": "Mike Brown",
+      "isFeatured": false,
+      "image": "/courses/drumming.jpg"
+    },
+    {
+      "id": 5,
+      "title": "Jazz Improvisation",
+      "slug": "jazz-improvisation",
+      "description": "Learn the art of jazz improvisation with this course designed for all levels.",
+      "price": 139.99,
+      "instructor": "Chris Davis",
+      "isFeatured": false,
+      "image": "/courses/jazz.jpg"
+    },
+    {
+      "id": 6,
+      "title": "High Accuracy",
+      "slug": "music-production-fundamentals",
+      "description": "Uses advanced algorithms to ensure accurate recognition, even with varied lighting or angles.",
+      "price": 149.99,
+      "instructor": "Alex Wilson",
+      "isFeatured": true,
+      "image": "/courses/music-prod.jpg"
+    },
+    {
+      "id": 7,
+      "title": "Songwriting Essentials",
+      "slug": "songwriting-essentials",
+      "description": "Learn the essentials of songwriting to express your musical creativity.",
+      "price": 159.99,
+      "instructor": "Samantha Miller",
+      "isFeatured": false,
+      "image": "/courses/song-writing.jpg"
+    },
+    {
+      "id": 8,
+      "title": "Fraud Prevention",
+      "slug": "electronic-music-production",
+      "description": "Prevents buddy-punching or proxy attendance by ensuring the actual person is present.",
+      "price": 169.99,
+      "instructor": "Luke Harris",
+      "isFeatured": true,
+      "image": "/courses/music-prod.jpg"
+    },
+    {
+      "id": 9,
+      "title": "Offline Image Storage and Backup",
+      "slug": "classical-music-history",
+      "description": "Stores attendance images offline, ensuring secure, accessible records without internet",
+      "price": 179.99,
+      "instructor": "Grace Lee",
+      "isFeatured": true,
+      "image": "/courses/classical-music.jpg"
+    },
+    {
+      "id": 10,
+      "title": "Spreadsheet Attendance Analytics",
+      "slug": "blues-guitar-techniques",
+      "description": "Analyzes attendance data, providing insights for improved management decisions.",
+      "price": 189.99,
+      "instructor": "Ethan Moore",
+      "isFeatured": true,
+      "image": "/courses/blues.jpg"
+    }
+  ]
+}
